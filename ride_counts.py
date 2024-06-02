@@ -10,16 +10,20 @@ class FormatResult(beam.DoFn):
 def run():
     # Set up logging
     logging.basicConfig(level=logging.INFO)
-    
-    # Define the pipeline options
-    options = PipelineOptions()
-    gcloud_options = options.view_as(GoogleCloudOptions)
-    gcloud_options.project = 'ml-6-coding-challenge-425112'
-    gcloud_options.job_name = 'count-rides'
-    gcloud_options.staging_location = 'gs://ml6-challenge-dataflow-bucket/staging'
-    gcloud_options.temp_location = 'gs://ml6-challenge-dataflow-bucket/temp'
-    gcloud_options.region = 'eu-west1'  # Ensure this matches your dataset region
 
+    # Define the pipeline options
+    options = PipelineOptions(
+        runner='DataflowRunner',
+        project='ml-6-coding-challenge-425112',
+        job_name='count-rides',
+        staging_location='gs://ml6-challenge-dataflow-bucket/staging',
+        temp_location='gs://ml6-challenge-dataflow-bucket/temp',
+        region='europe-west1',
+        save_main_session=True
+    )
+    
+    gcloud_options = options.view_as(GoogleCloudOptions)
+    
     with beam.Pipeline(options=options) as p:
         # Read ride data from BigQuery
         rides = (
@@ -40,8 +44,11 @@ def run():
             | 'Format Results' >> beam.ParDo(FormatResult())
         )
 
-        # Write the results to a text file
-        ride_counts | 'Write to Text' >> beam.io.WriteToText('gs://ml6-challenge-dataflow-bucket/output/easy_test_rides_count_all_combinations', shard_name_template='')
+        # Write the results to a text file in GCS
+        ride_counts | 'Write to Text' >> beam.io.WriteToText(
+            'gs://ml6-challenge-dataflow-bucket/output/easy_test_rides_count',
+            shard_name_template=''
+        )
 
 if __name__ == '__main__':
     run()
