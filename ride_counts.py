@@ -7,10 +7,15 @@ class FormatResult(beam.DoFn):
         (start_station_id, end_station_id), count = element
         yield f"{start_station_id},{end_station_id},{count}"
 
+def filter_none_ids(row):
+    start_station_id = row['start_station_id']
+    end_station_id = row['end_station_id']
+    return start_station_id is not None and end_station_id is not None
+
 def run():
     # Set up logging
     logging.basicConfig(level=logging.INFO)
-
+    
     # Define the pipeline options
     options = PipelineOptions(
         runner='DataflowRunner',
@@ -18,12 +23,9 @@ def run():
         job_name='count-rides',
         staging_location='gs://ml6-challenge-dataflow-bucket/staging',
         temp_location='gs://ml6-challenge-dataflow-bucket/temp',
-        region='europe-west1',
-        save_main_session=True
+        region='europe-west1'
     )
-    
-    gcloud_options = options.view_as(GoogleCloudOptions)
-    
+
     with beam.Pipeline(options=options) as p:
         # Read ride data from BigQuery
         rides = (
@@ -36,19 +38,19 @@ def run():
             )
         )
 
+        # Filter out rows with None values for start_station_id or end_station_id
+        filtered_rides = rides | 'Filter None IDs' >> beam.Filter(filter_none_ids)
+
         # Count the number of rides for each start and end station combination
         ride_counts = (
-            rides
+            filtered_rides
             | 'Pair Rides' >> beam.Map(lambda row: ((row['start_station_id'], row['end_station_id']), 1))
             | 'Count Rides' >> beam.CombinePerKey(sum)
             | 'Format Results' >> beam.ParDo(FormatResult())
         )
 
-        # Write the results to a text file in GCS
-        ride_counts | 'Write to Text' >> beam.io.WriteToText(
-            'gs://ml6-challenge-dataflow-bucket/output/easy_test_rides_count',
-            shard_name_template=''
-        )
+        # Write the results to a text file
+        ride_counts | 'Write to Text' >> beam.io.WriteToText('gs://ml6-challenge-dataflow-bucket/output/ride_counts', shard_name_template='')
 
 if __name__ == '__main__':
     run()
