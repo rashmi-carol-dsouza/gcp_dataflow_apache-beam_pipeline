@@ -1,6 +1,7 @@
+# Generated
 /env
-
 .terraform
-
 /google-cloud-sdk
 
+# Editor / OS Specific
+justfile

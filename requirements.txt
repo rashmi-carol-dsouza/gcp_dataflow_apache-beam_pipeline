@@ -1,0 +1,2 @@
+geopy==1.18.0
+apache-beam[gcp]==2.50.0
